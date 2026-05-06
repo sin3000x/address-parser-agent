@@ -73,11 +73,12 @@ const fields = ref({ address_field: '' })
 const loadingAnalyze = ref(false)
 const logs = ref([])
 let ws = null
+let pollTimer = null
 
 const addLog = (msg, extra = null) => {
   const ts = new Date().toLocaleTimeString()
-  logs.value.unshift(`[${ts}] ${msg}`)
-  if (extra) logs.value.unshift(`  -> ${JSON.stringify(extra)}`)
+  logs.value.push(`[${ts}] ${msg}`)
+  if (extra) logs.value.push(`  -> ${JSON.stringify(extra)}`)
 }
 
 const onExceed = () => {
@@ -130,6 +131,32 @@ const fetchHeadersAndAnalyze = async () => {
   }
 }
 
+
+const syncTaskStatus = async () => {
+  if (!taskId.value) return
+  try {
+    const r = await api.get(`/task/${taskId.value}`)
+    const t = r.data || {}
+    progress.value = Number(t.progress || 0)
+    current.value = Number(t.current_row || 0)
+    total.value = Number(t.total_rows || 0)
+    if (t.status) status.value = t.status
+  } catch (e) {
+    addLog('轮询任务状态失败', { response: e?.response?.data || e.message })
+  }
+}
+
+const startPolling = () => {
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = setInterval(async () => {
+    await syncTaskStatus()
+    if (['completed', 'failed'].includes(status.value)) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+  }, 1000)
+}
+
 const run = async () => {
   const req = { task_id: taskId.value, address_field: fields.value.address_field }
   try {
@@ -137,6 +164,8 @@ const run = async () => {
     status.value = 'running'
     addLog('任务启动成功', req)
     ws = new WebSocket(`${window.APP_CONFIG?.WS_BASE_URL || 'ws://localhost:8000'}/ws/task/${taskId.value}`)
+    ws.onopen = () => addLog('WebSocket连接成功')
+    ws.onerror = () => addLog('WebSocket连接异常，使用轮询兜底')
     ws.onmessage = (e) => {
       const d = JSON.parse(e.data)
       if (d.progress != null) progress.value = d.progress
@@ -144,6 +173,8 @@ const run = async () => {
       total.value = d.total || total.value
       if (d.status) status.value = d.status
     }
+    await syncTaskStatus()
+    startPolling()
   } catch (e) {
     addLog('任务启动失败', { request: req, response: e?.response?.data || e.message })
     ElMessage.error('任务启动失败')
