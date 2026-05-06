@@ -1,5 +1,3 @@
-import asyncio
-
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -34,8 +32,7 @@ def startup():
 @app.websocket("/ws/task/{task_id}")
 async def ws_task(websocket: WebSocket, task_id: str):
     await websocket.accept()
-    q: asyncio.Queue = asyncio.Queue()
-    subscribers.setdefault(task_id, set()).add(q)
+    subscribers.setdefault(task_id, set()).add(websocket)
     logger.info("[WS] connected task=%s, subscribers=%s", task_id, len(subscribers.get(task_id, set())))
     # send buffered events first in case client connected after task already started
     for event in event_buffers.get(task_id, []):
@@ -43,8 +40,7 @@ async def ws_task(websocket: WebSocket, task_id: str):
 
     try:
         while True:
-            data = await q.get()
-            await websocket.send_json(data)
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        subscribers.get(task_id, set()).discard(q)
+        subscribers.get(task_id, set()).discard(websocket)
         logger.info("[WS] disconnected task=%s, subscribers=%s", task_id, len(subscribers.get(task_id, set())))

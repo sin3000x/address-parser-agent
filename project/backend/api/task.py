@@ -16,7 +16,7 @@ router = APIRouter()
 manager = TaskManager()
 excel = ExcelTool()
 agent = Agent()
-subscribers: Dict[str, set[asyncio.Queue]] = {}
+subscribers: Dict[str, set] = {}
 event_buffers: Dict[str, list[dict]] = {}
 logger = get_logger("api.task")
 
@@ -29,8 +29,14 @@ async def publish(task_id: str, payload: dict):
 
     channels = subscribers.get(task_id, set())
     logger.info("[WS] publish task=%s, subscribers=%s, payload=%s", task_id, len(channels), payload)
-    for q in channels:
-        await q.put(payload)
+    dead = []
+    for ws in channels:
+        try:
+            await ws.send_json(payload)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        channels.discard(ws)
 
 
 class RunRequest(BaseModel):
