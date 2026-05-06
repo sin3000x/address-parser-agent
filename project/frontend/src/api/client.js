@@ -1,4 +1,5 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: 'http://localhost:8000' })
+const baseURL = window.APP_CONFIG?.API_BASE_URL || 'http://localhost:8000'
+const api = axios.create({ baseURL })
 export default api

@@ -36,8 +36,8 @@ const analyze = async()=>{ const r=await api.post('/analyze', {headers: headers.
 const run = async()=>{
   await api.post('/run', {task_id:taskId.value, selected_column:fields.value.address_field, ...fields.value})
   status.value='running'
-  ws = new WebSocket(`ws://localhost:8000/ws/task/${taskId.value}`)
+  ws = new WebSocket(`${window.APP_CONFIG?.WS_BASE_URL || 'ws://localhost:8000'}/ws/task/${taskId.value}`)
   ws.onmessage = (e)=>{ const d=JSON.parse(e.data); if(d.progress!=null) progress.value=d.progress; current.value=d.current||current.value; total.value=d.total||total.value; if(d.status) status.value=d.status }
 }
-const download = ()=> window.open(`http://localhost:8000/download/${taskId.value}`)
+const download = ()=> window.open(`${window.APP_CONFIG?.API_BASE_URL || 'http://localhost:8000'}/download/${taskId.value}`)
 </script>
