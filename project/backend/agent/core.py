@@ -6,10 +6,13 @@ from typing import Any
 from openai import OpenAI
 
 from agent.prompt import HEADER_PROMPT, EXTRACT_PROMPT
+from logger import get_logger
 
 
 class Agent:
     """LLM agent that only returns structured JSON."""
+
+    logger = get_logger("agent.core")
 
     def __init__(self) -> None:
         config = configparser.ConfigParser()
@@ -36,7 +39,7 @@ class Agent:
             raise ValueError(f"Invalid JSON from model: {text}")
 
     def analyze_headers(self, headers: list[str]) -> dict[str, str]:
-        print(f"[LLM] analyze_headers request: {headers}")
+        self.logger.info("[LLM] analyze_headers request: %s", headers)
         resp = self.client.chat.completions.create(
             model=self.model,
             temperature=0,
@@ -46,12 +49,12 @@ class Agent:
             ],
         )
         raw = resp.choices[0].message.content or "{}"
-        print(f"[LLM] analyze_headers response: {raw}")
+        self.logger.info("[LLM] analyze_headers response: %s", raw)
         data = self._parse_json(raw)
         return {"address_field": str(data.get("address_field", ""))}
 
     def extract_info(self, text: str) -> dict[str, str]:
-        print(f"[LLM] extract_info request: {text}")
+        self.logger.info("[LLM] extract_info request: %s", text)
         resp = self.client.chat.completions.create(
             model=self.model,
             temperature=0,
@@ -61,7 +64,7 @@ class Agent:
             ],
         )
         raw = resp.choices[0].message.content or "{}"
-        print(f"[LLM] extract_info response: {raw}")
+        self.logger.info("[LLM] extract_info response: %s", raw)
         data = self._parse_json(raw)
         keys = ["name", "phone", "address", "province", "city"]
         return {k: str(data.get(k, "")) for k in keys}

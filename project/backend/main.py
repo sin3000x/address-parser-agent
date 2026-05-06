@@ -7,6 +7,10 @@ from api.upload import router as upload_router
 from api.agent import router as agent_router
 from api.task import router as task_router, subscribers
 from storage.db import init_db
+from logger import get_logger, setup_logging
+
+setup_logging()
+logger = get_logger("main")
 
 app = FastAPI(title="Excel Agent")
 app.add_middleware(
@@ -32,11 +36,11 @@ async def ws_task(websocket: WebSocket, task_id: str):
     await websocket.accept()
     q: asyncio.Queue = asyncio.Queue()
     subscribers.setdefault(task_id, set()).add(q)
-    print(f"[WS] connected task={task_id}, subscribers={len(subscribers.get(task_id, set()))}")
+    logger.info("[WS] connected task=%s, subscribers=%s", task_id, len(subscribers.get(task_id, set())))
     try:
         while True:
             data = await q.get()
             await websocket.send_json(data)
     except WebSocketDisconnect:
         subscribers.get(task_id, set()).discard(q)
-        print(f"[WS] disconnected task={task_id}, subscribers={len(subscribers.get(task_id, set()))}")
+        logger.info("[WS] disconnected task=%s, subscribers=%s", task_id, len(subscribers.get(task_id, set())))

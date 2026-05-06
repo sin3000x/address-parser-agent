@@ -45,3 +45,7 @@ npm run dev  # http://0.0.0.0:8099
 ## 字段确认说明
 LLM 分析阶段只猜测一个字段：`address_field`（详细地址列），用户只需要确认这一个字段。
 后续逐行信息提取仅使用该字段文本作为 analyze 输入。
+
+
+## 日志文件
+后端所有日志（包括 Task 执行日志、WebSocket 发布日志、LLM 请求/响应日志）统一写入：`backend/logs/app.log`
