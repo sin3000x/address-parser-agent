@@ -31,3 +31,12 @@ npm run dev
 - GET `/task/{task_id}`
 - GET `/download/{task_id}`
 - WS `/ws/task/{task_id}`
+
+
+## LLM配置
+在 `backend/config.ini` 中配置：
+- `base_url`
+- `api_key`
+- `model`
+
+不再使用环境变量。

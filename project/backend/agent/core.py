@@ -1,5 +1,6 @@
 import json
-import os
+import configparser
+from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
@@ -11,11 +12,18 @@ class Agent:
     """LLM agent that only returns structured JSON."""
 
     def __init__(self) -> None:
+        config = configparser.ConfigParser()
+        config_path = Path(__file__).resolve().parent.parent / "config.ini"
+        config.read(config_path, encoding="utf-8")
+
+        base_url = config.get("llm", "base_url", fallback="http://localhost:11434/v1")
+        api_key = config.get("llm", "api_key", fallback="ollama")
+        self.model = config.get("llm", "model", fallback="qwen2.5:7b")
+
         self.client = OpenAI(
-            base_url=os.getenv("LLM_BASE_URL", "http://localhost:11434/v1"),
-            api_key=os.getenv("LLM_API_KEY", "ollama"),
+            base_url=base_url,
+            api_key=api_key,
         )
-        self.model = os.getenv("LLM_MODEL", "qwen2.5:7b")
 
     def _parse_json(self, text: str) -> dict[str, Any]:
         try:
