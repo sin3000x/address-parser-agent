@@ -27,9 +27,10 @@ class TaskManager:
                     INSERT INTO tasks (
                         id, status, progress, current_row, total_rows,
                         file_path, output_path, selected_column,
-                        name_field, address_field, phone_field, error,
-                        created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        contact_name, contact_phone, contact_email, company_name,
+                        address_detail, province, city, country, postcode, delivery_note,
+                        error, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         task.id,
@@ -40,15 +41,40 @@ class TaskManager:
                         task.file_path,
                         task.output_path,
                         task.selected_column,
-                        task.name_field,
-                        task.address_field,
-                        task.phone_field,
+                        task.contact_name,
+                        task.contact_phone,
+                        task.contact_email,
+                        task.company_name,
+                        task.address_detail,
+                        task.province,
+                        task.city,
+                        task.country,
+                        task.postcode,
+                        task.delivery_note,
                         task.error,
                         task.created_at or self._now(),
                         task.updated_at or self._now(),
                     ),
                 )
                 conn.commit()
+            finally:
+                conn.close()
+
+    def list_tasks(self) -> list[Task]:
+        conn = get_conn()
+        try:
+            rows = conn.execute("SELECT * FROM tasks ORDER BY created_at DESC").fetchall()
+            return [Task(**dict(row)) for row in rows]
+        finally:
+            conn.close()
+
+    def delete_task(self, task_id: str) -> bool:
+        with self._lock:
+            conn = get_conn()
+            try:
+                cursor = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+                conn.commit()
+                return cursor.rowcount > 0
             finally:
                 conn.close()
 
