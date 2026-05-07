@@ -91,6 +91,10 @@ const selectTask = async (t) => {
   total.value = Number(t.total_rows || 0)
   fields.value.address_field = t.selected_column || fields.value.address_field
   await syncTaskStatus()
+  if (status.value === 'running') {
+    const wsReady = await connectWebSocket()
+    if (!wsReady) startPolling()
+  }
 }
 
 const onExceed = () => ElMessage.warning('一次只能上传一个文件')
@@ -132,7 +136,9 @@ const startPolling = () => {
 }
 
 const connectWebSocket = async () => {
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return
+  if (ws && ws.readyState === WebSocket.OPEN) return true
+  if (ws && ws.readyState === WebSocket.CONNECTING) return true
+
   ws = new WebSocket(`${window.APP_CONFIG?.WS_BASE_URL || 'ws://localhost:8000'}/ws/task/${taskId.value}`)
   ws.onmessage = (e) => {
     const d = JSON.parse(e.data)
@@ -141,7 +147,15 @@ const connectWebSocket = async () => {
     if (d.total != null) total.value = d.total
     if (d.status) status.value = d.status
   }
-  ws.onclose = () => { if (!['completed', 'failed'].includes(status.value)) startPolling() }
+
+  return await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), 5000)
+    ws.onopen = () => { clearTimeout(timer); resolve(true) }
+    ws.onerror = () => { clearTimeout(timer); resolve(false) }
+    ws.onclose = () => {
+      if (!['completed', 'failed', 'stopped'].includes(status.value)) startPolling()
+    }
+  })
 }
 
 
@@ -167,11 +181,11 @@ const deleteCurrentTask = async () => {
 }
 
 const run = async () => {
-  await connectWebSocket()
+  const wsReady = await connectWebSocket()
   await api.post('/run', { task_id: taskId.value, address_field: fields.value.address_field })
   status.value = 'running'
   await fetchTasks()
-  startPolling()
+  if (!wsReady) startPolling()
 }
 
 const download = () => window.open(`${window.APP_CONFIG?.API_BASE_URL || 'http://localhost:8000'}/download/${taskId.value}`)
