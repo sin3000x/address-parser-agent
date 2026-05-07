@@ -43,6 +43,24 @@ def init_db() -> None:
             """
         )
 
+        migration_columns = {
+            "selected_column": "TEXT",
+            "contact_name": "TEXT",
+            "contact_phone": "TEXT",
+            "contact_email": "TEXT",
+            "company_name": "TEXT",
+            "address_detail": "TEXT",
+            "province": "TEXT",
+            "city": "TEXT",
+            "country": "TEXT",
+            "postcode": "TEXT",
+            "delivery_note": "TEXT",
+        }
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
+        for col, col_type in migration_columns.items():
+            if col not in existing:
+                conn.execute(f"ALTER TABLE tasks ADD COLUMN {col} {col_type}")
+
         conn.commit()
     finally:
         conn.close()
