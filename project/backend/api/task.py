@@ -63,6 +63,7 @@ async def run(req: RunRequest):
         address_field=req.address_field,
         status="running",
     )
+    await publish(req.task_id, {"progress": 0, "current": 0, "total": 3})
     asyncio.create_task(process_task(req.task_id))
     return {"ok": True}
 
@@ -87,7 +88,16 @@ async def process_task(task_id: str):
             await asyncio.to_thread(excel.write_result_row, latest.output_path, i + 1, result)
             progress = i / total if total else 1.0
             manager.update_task(task_id, current_row=i, progress=progress)
-            await publish(task_id, {"progress": progress, "current": i, "total": total})
+            await publish(
+                task_id,
+                {
+                    "progress": progress,
+                    "current": i,
+                    "total": total,
+                    "text": text,
+                    "result": result,
+                },
+            )
             await asyncio.sleep(0)
         logger.info("[TASK] completed task_id=%s", task_id)
         manager.update_task(task_id, status="completed", progress=1.0)

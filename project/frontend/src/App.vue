@@ -159,7 +159,7 @@ const startPolling = () => {
 
 
 const connectWebSocket = async () => {
-  if (ws && ws.readyState === WebSocket.OPEN) return
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return
   ws = new WebSocket(`${window.APP_CONFIG?.WS_BASE_URL || 'ws://localhost:8000'}/ws/task/${taskId.value}`)
   ws.onmessage = (e) => {
     const d = JSON.parse(e.data)
@@ -167,6 +167,16 @@ const connectWebSocket = async () => {
     current.value = d.current || current.value
     total.value = d.total || total.value
     if (d.status) status.value = d.status
+    if (d.text != null || d.result != null) {
+      addLog('收到解析进度消息', { text: d.text, result: d.result, current: d.current, total: d.total })
+    }
+  }
+
+  ws.onclose = () => {
+    addLog('WebSocket已断开，切换到HTTP轮询')
+    if (!['completed', 'failed'].includes(status.value)) {
+      startPolling()
+    }
   }
 
   await new Promise((resolve, reject) => {
@@ -178,7 +188,7 @@ const connectWebSocket = async () => {
     }
     ws.onerror = () => {
       clearTimeout(timer)
-      addLog('WebSocket连接异常，使用轮询兜底')
+      addLog('WebSocket连接异常')
       reject(new Error('WebSocket连接失败'))
     }
   })
@@ -192,8 +202,8 @@ const run = async () => {
     status.value = 'running'
     addLog('任务启动成功', req)
     await syncTaskStatus()
-    startPolling()
   } catch (e) {
+    startPolling()
     addLog('任务启动失败', { request: req, response: e?.response?.data || e.message })
     ElMessage.error('任务启动失败')
   }
