@@ -164,8 +164,8 @@ const connectWebSocket = async () => {
   ws.onmessage = (e) => {
     const d = JSON.parse(e.data)
     if (d.progress != null) progress.value = d.progress
-    current.value = d.current || current.value
-    total.value = d.total || total.value
+    if (d.current != null) current.value = d.current
+    if (d.total != null) total.value = d.total
     if (d.status) status.value = d.status
     if (d.text != null || d.result != null) {
       addLog('收到解析进度消息', { text: d.text, result: d.result, current: d.current, total: d.total })
