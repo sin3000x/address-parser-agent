@@ -56,8 +56,8 @@
         </section>
       </el-card>
       <el-card class="log-card" shadow="never">
-        <template #header><strong>运行日志</strong></template>
-        <div class="log-wrap">
+        <template #header><div class="log-header"><strong>运行日志</strong><el-switch v-model="autoScroll" size="small" active-text="自动滚动"/></div></template>
+        <div class="log-wrap" ref="logWrapRef">
           <div v-for="(line, idx) in logs" :key="idx" class="log-line">{{ line }}</div>
         </div>
       </el-card>
@@ -66,7 +66,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from './api/client'
 const file = ref(null)
@@ -80,14 +80,30 @@ const total = ref(0)
 const fields = ref({ address_field: '' })
 const loadingAnalyze = ref(false)
 const logs = ref([])
+const autoScroll = ref(true)
+const logWrapRef = ref(null)
 let ws = null
 let pollTimer = null
 
 
-const addLog = (msg, extra = null) => {
+const formatResultFields = (result = {}) => {
+  const rows = [
+    `联系人姓名: ${result.name || ''}`,
+    `联系人电话: ${result.phone || ''}`,
+    `联系人邮箱: ${result.email || ''}`,
+    `公司名称: ${result.company_name || ''}`,
+    `完整地址: ${result.address || ''}`,
+    `省份: ${result.province || ''}`,
+    `城市: ${result.city || ''}`,
+    `国家: ${result.country || ''}`,
+    `配送备注: ${result.remark || ''}`,
+  ]
+  return rows.join(' | ')
+}
+
+const addLog = (msg, detail = '') => {
   const ts = new Date().toLocaleTimeString()
-  logs.value.push(`[${ts}] ${msg}`)
-  if (extra) logs.value.push(`  -> ${JSON.stringify(extra)}`)
+  logs.value.push(detail ? `[${ts}] ${msg}\n${detail}` : `[${ts}] ${msg}`)
   if (logs.value.length > 500) logs.value.splice(0, logs.value.length - 500)
 }
 
@@ -96,7 +112,7 @@ const statusTagType = (s) => ({ completed: 'success', failed: 'danger', running:
 const fetchTasks = async () => {
   const r = await api.get('/tasks')
   tasks.value = r.data.tasks || []
-  addLog('刷新任务列表', { count: tasks.value.length })
+  addLog('刷新任务列表', `任务数: ${tasks.value.length}`)
 }
 
 const selectTask = async (t) => {
@@ -107,7 +123,7 @@ const selectTask = async (t) => {
   total.value = Number(t.total_rows || 0)
   fields.value.address_field = t.selected_column || fields.value.address_field
   await syncTaskStatus()
-  addLog('切换任务', { task_id: t.id, status: status.value })
+  addLog('切换任务', `task_id=${t.id} | status=${status.value}`)
   if (status.value === 'running') {
     const wsReady = await connectWebSocket()
     if (!wsReady) startPolling()
@@ -122,7 +138,7 @@ const onFileChange = async (f) => {
   taskId.value = r.data.task_id
   await fetchTasks()
   ElMessage.success('上传成功')
-  addLog('上传成功', r.data)
+  addLog('上传成功', `task_id=${r.data.task_id}`)
 }
 
 const fetchHeadersAndAnalyze = async () => {
@@ -132,7 +148,7 @@ const fetchHeadersAndAnalyze = async () => {
     headers.value = hr.data.headers || []
     const ar = await api.post('/analyze', { headers: headers.value })
     fields.value.address_field = ar.data.address_field || ''
-    addLog('地址字段猜测完成', ar.data)
+    addLog('地址字段猜测完成', `address_field=${ar.data.address_field || ''}`)
   } finally { loadingAnalyze.value = false }
 }
 
@@ -165,7 +181,11 @@ const connectWebSocket = async () => {
     if (d.current != null) current.value = d.current
     if (d.total != null) total.value = d.total
     if (d.status) status.value = d.status
-    if (d.text != null || d.result != null) addLog('收到WS进度', { current: d.current, total: d.total, status: d.status })
+    if (d.text != null || d.result != null) {
+      const originalText = `待解析原文: ${d.text || ''}`
+      const parsedFields = `解析字段: ${formatResultFields(d.result || {})}`
+      addLog(`收到WS进度 ${d.current || ''}/${d.total || ''}`, `${originalText}\n${parsedFields}`)
+    }
   }
 
   return await new Promise((resolve) => {
@@ -185,7 +205,7 @@ const stopTask = async () => {
   status.value = 'stopped'
   await syncTaskStatus()
   await fetchTasks()
-  addLog('任务已停止', { task_id: taskId.value })
+  addLog('任务已停止', `task_id=${taskId.value}`)
 }
 
 const deleteCurrentTask = async () => {
@@ -208,11 +228,17 @@ const run = async () => {
   await api.post('/run', { task_id: taskId.value, address_field: fields.value.address_field })
   status.value = 'running'
   await fetchTasks()
-  addLog('任务启动/续跑', { task_id: taskId.value, ws: wsReady ? 'connected' : 'fallback_polling' })
+  addLog('任务启动/续跑', `task_id=${taskId.value} | ws=${wsReady ? 'connected' : 'fallback_polling'}`)
   if (!wsReady) startPolling()
 }
 
 const download = () => window.open(`${window.APP_CONFIG?.API_BASE_URL || 'http://localhost:8000'}/download/${taskId.value}`)
+
+watch(logs, async () => {
+  if (!autoScroll.value) return
+  await nextTick()
+  if (logWrapRef.value) logWrapRef.value.scrollTop = logWrapRef.value.scrollHeight
+}, { deep: true })
 
 onMounted(fetchTasks)
 </script>
@@ -230,6 +256,7 @@ onMounted(fetchTasks)
 .section h3 { margin: 0 0 10px; color: #374151; }
 .hint,.status { margin-top: 8px; color: #374151; }
 .log-card { margin-top: 16px; border-radius: 12px; }
+.log-header { display: flex; align-items: center; justify-content: space-between; }
 .log-wrap { max-height: 260px; overflow: auto; background: #0b1220; color: #d1fae5; padding: 10px; border-radius: 8px; font-family: monospace; }
 .log-line { margin-bottom: 6px; white-space: pre-wrap; }
 </style>
