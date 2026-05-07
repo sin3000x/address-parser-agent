@@ -81,7 +81,7 @@ async def process_task(task_id: str):
         manager.update_task(task_id, total_rows=total)
         for i, row in enumerate(df.itertuples(index=False), start=1):
             latest = manager.get_task(task_id)
-            if i < latest.current_row:
+            if i <= latest.current_row:
                 continue
             text = str(getattr(row, latest.selected_column, ""))
             logger.info("[TASK] row=%s, text=%s", i, text)
@@ -120,6 +120,11 @@ async def process_task(task_id: str):
         logger.exception("[TASK] failed task_id=%s, error=%s", task_id, e)
         manager.update_task(task_id, status="failed", error=str(e))
         await publish(task_id, {"status": "failed", "error": str(e)})
+
+
+@router.get("/tasks")
+def list_tasks():
+    return {"tasks": [task.to_dict() for task in manager.list_tasks()]}
 
 
 @router.get("/task/{task_id}")

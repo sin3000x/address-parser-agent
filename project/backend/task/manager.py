@@ -59,6 +59,14 @@ class TaskManager:
             finally:
                 conn.close()
 
+    def list_tasks(self) -> list[Task]:
+        conn = get_conn()
+        try:
+            rows = conn.execute("SELECT * FROM tasks ORDER BY created_at DESC").fetchall()
+            return [Task(**dict(row)) for row in rows]
+        finally:
+            conn.close()
+
     def get_task(self, task_id: str) -> Optional[Task]:
         conn = get_conn()
         try:
