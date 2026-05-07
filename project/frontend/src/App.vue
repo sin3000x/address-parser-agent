@@ -35,7 +35,6 @@
             <el-button type="primary" :loading="loadingAnalyze">选择并上传 Excel</el-button>
           </el-upload>
           <div class="hint">当前文件：{{ uploadedFileName || '暂无' }}</div>
-          <div class="hint">表头：{{ headers.join('；') || '暂无' }}</div>
         </section>
 
         <section class="section">
