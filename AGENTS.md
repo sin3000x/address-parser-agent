@@ -143,8 +143,9 @@ WebSocket flow:
 
 - Frontend connects to `/ws/task/{task_id}`.
 - Backend stores the connection in `subscribers[task_id]`.
-- `publish(task_id, payload)` sends JSON progress events to all subscribers for that task.
-- `event_buffers[task_id]` stores recent progress events so a late WebSocket connection can receive buffered updates.
+- `publish(task_id, payload)` is the backend's broadcast helper for task progress events. It first appends the payload to `event_buffers[task_id]`, trims the buffer to the latest 200 events, then sends the same JSON payload to every currently connected WebSocket in `subscribers[task_id]`. If sending fails for a connection, that dead connection is removed from the subscriber set.
+- `event_buffers[task_id]` is an in-memory replay buffer, not a database table. It exists so that if the browser connects after a task has already started, reconnects after a network hiccup, or switches back to a running historical task, the WebSocket endpoint can immediately send recently buffered progress events before waiting for new events.
+- The buffer is best-effort and process-local: it disappears when the backend process restarts, and only the latest 200 events are retained. Durable progress still comes from the `tasks` SQLite row (`status`, `current_row`, `total_rows`, `progress`), while row-level WebSocket log events are only buffered in memory.
 - Frontend falls back to polling task status if the WebSocket connection is unavailable or closes before the task reaches a terminal status.
 
 ## Frontend architecture
